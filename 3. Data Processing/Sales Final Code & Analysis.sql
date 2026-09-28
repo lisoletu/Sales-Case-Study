@@ -4,16 +4,43 @@ CREATE OR REPLACE TABLE sales.analytics.sales_final AS
 WITH transformed_data AS (
 
     SELECT
-        sales_date,
+        TO_DATE(sales_date) AS sales_date,
         CAST(ROUND(sales) AS DECIMAL (10,2)) AS sales,
         CAST(ROUND(cost_of_sales) AS DECIMAL (10,2)) AS cost_of_sales,
         quantity_sold,
+
+        ---transformations from date column
         YEAR(sales_date) AS year,
         MONTH(sales_date) AS month_number,
         DATE_FORMAT(sales_date, 'MMMM') AS month,
         QUARTER(sales_date) AS quarter,
         DAY(sales_date) AS day,
         DAYNAME(sales_date) AS day_of_week,
+
+        --Promotion classification
+        CASE
+            WHEN TO_DATE(sales_date) BETWEEN '2014-02-21' AND '2014-02-28'
+                THEN 'Promotion 1 - Feb 2014'
+
+            WHEN TO_DATE(sales_date) BETWEEN '2014-08-26' AND '2014-08-31'
+                THEN 'Promotion 2 - Aug 2014'
+
+            WHEN TO_DATE(sales_date) BETWEEN '2015-06-24' AND '2015-06-30'
+                THEN 'Promotion 3 - Jun 2015'
+
+            ELSE 'Non-Promotion'
+        END AS promotion_period,
+
+        --promotion flag
+         CASE
+            WHEN TO_DATE(sales_date) BETWEEN '2014-02-21' AND '2014-02-28'
+              OR TO_DATE(sales_date) BETWEEN '2014-08-26' AND '2014-08-31'
+              OR TO_DATE(sales_date) BETWEEN '2015-06-24' AND '2015-06-30'
+                THEN 'Promotion'
+            ELSE 'Non-Promotion'
+        END AS promotion_flag,
+
+        --pricing calculations using (sales, quantity sold and cost of sales) original columns
         CAST(ROUND(sales / quantity_sold) AS DECIMAL (10,2)) AS sales_price_per_unit,
         CAST(ROUND(sales - cost_of_sales) AS DECIMAL (10,2)) AS gross_profit,
         CAST(ROUND((sales - cost_of_sales) / quantity_sold)AS DECIMAL (10,2)) AS gross_profit_per_unit,
@@ -41,8 +68,13 @@ FROM sales.analytics.sales_final;
 
 --calculating Average Unit Sales Price
 SELECT
-    ROUND(AVG(sales_price_per_unit), 2) AS average_unit_sales_price
-FROM sales.analytics.sales_final; --(37.07)
+    ROUND(AVG(sales_price_per_unit),2) AS average_unit_sales_price
+FROM sales.analytics.sales_final; 
+
+--total sales
+SELECT SUM(sales)
+FROM sales.analytics.sales_final;
+
 
 --calculating monthly sales and quantity sold over the years
 SELECT
@@ -109,16 +141,16 @@ SELECT
     sales
 FROM sales.analytics.sales_final
 WHERE sales_date BETWEEN '2014-08-01' AND '2014-08-31'
-ORDER BY sales_date;---from 1-25 August prices stay around 32.42 to 33.33 (baseline)
-                    --from 26-31 August prices drop sharply from 31.87 to 30.75 (inferred Promotion)
+ORDER BY sales_date;---from 1-25 August prices stay around 32.42 to 33.33 (Non-promotion)
+                    --from 26-31 August prices drop sharply from 31.87 to 30.75 (Promotion)
 
---comparing baseline & inferred promotion periods
+--comparing non-promotions & promotion periods
 SELECT
     CASE
         WHEN sales_date BETWEEN '2014-08-01' AND '2014-08-25'
-            THEN 'Baseline'
+            THEN 'Non-promotion'
         WHEN sales_date BETWEEN '2014-08-26' AND '2014-08-31'
-            THEN 'Inferred Promotion'
+            THEN 'Promotion'
     END AS period,
     ROUND(AVG(sales_price_per_unit), 2) AS avg_price,
     ROUND(AVG(quantity_sold), 2) AS avg_quantity_sold,
@@ -128,15 +160,15 @@ WHERE sales_date BETWEEN '2014-08-01' AND '2014-08-31'
 GROUP BY
     CASE
         WHEN sales_date BETWEEN '2014-08-01' AND '2014-08-25'
-            THEN 'Baseline'
+            THEN 'Non-promotion'
         WHEN sales_date BETWEEN '2014-08-26' AND '2014-08-31'
-            THEN 'Inferred Promotion'
+            THEN 'Promotion'
     END
-ORDER BY period; --baseline (avg price = 32.87,avg quantity sold= 9254.84)
-                 -- inferred promotion (avg price = 30.95,avg quantity sold= 13200.17)
+ORDER BY period; --Non-promotion (avg price = 32.87,avg quantity sold= 9254.84)
+                 --promotion (avg price = 30.95,avg quantity sold= 13200.17)
 
 -- calculating price elasticity (how much quantity is sold changes when the price changes)
---formula: [(Promotion Quantity - Baseline Quantity)/Baseline Quantity]
+--formula: [(Promotion Quantity - Non-promotion Quantity)/Non-promotion Quantity]
 SELECT
     ROUND(
             (
@@ -149,9 +181,9 @@ SELECT
 SELECT
     CASE
         WHEN sales_date BETWEEN '2014-08-01' AND '2014-08-25'
-            THEN 'Baseline (1–25 Aug)'
+            THEN 'Non-promotion (1–25 Aug)'
         WHEN sales_date BETWEEN '2014-08-26' AND '2014-08-31'
-            THEN 'Inferred promotion (26–31 Aug)'
+            THEN 'promotion (26–31 Aug)'
     END AS period,
     COUNT(*) AS number_of_days,
     ROUND(SUM(sales), 2) AS total_sales,
@@ -161,12 +193,12 @@ WHERE sales_date BETWEEN '2014-08-01' AND '2014-08-31'
 GROUP BY
     CASE
         WHEN sales_date BETWEEN '2014-08-01' AND '2014-08-25'
-            THEN 'Baseline (1–25 Aug)'
+            THEN 'Non-promotion (1–25 Aug)'
         WHEN sales_date BETWEEN '2014-08-26' AND '2014-08-31'
-            THEN 'Inferred promotion (26–31 Aug)'
+            THEN 'promotion (26–31 Aug)'
     END
-ORDER BY period; --Baseline avg sales = 302,620.02
-                -- Inferred promotion avg sales = 407,479.64 (more revenue)
+ORDER BY period; --Non-promotion avg sales = 302,620.02
+                -- promotion avg sales = 407,479.64 (more revenue)
                 --((407,479.64 - 302,620.02)/302,620.02)*100) = 34.65% increase in sales during promotion period
 
 ---------------------------------------------------------------------
@@ -182,13 +214,13 @@ FROM sales.analytics.sales_final
 WHERE sales_date BETWEEN '2014-02-01' AND '2014-02-28'
 ORDER BY sales_date;
 
---comparing baseline & inferred promotion periods
+--comparing Non-promotion & promotion periods
 SELECT 
     CASE 
         WHEN sales_date BETWEEN '2014-02-01' AND '2014-02-20'
-            THEN 'Baseline (1–20 Feb)'
+            THEN 'Non-promotion (1–20 Feb)'
         WHEN sales_date BETWEEN '2014-02-21' AND '2014-02-28'
-            THEN 'Inferred promotion (21–28 Feb)'
+            THEN 'Promotion (21–28 Feb)'
     END AS period,
     ROUND(AVG(sales_price_per_unit), 2) AS average_price,
     ROUND(AVG(quantity_sold), 2) AS average_quantity_sold,
@@ -198,15 +230,15 @@ WHERE sales_date BETWEEN '2014-02-01' AND '2014-02-28'
 GROUP BY 
     CASE 
         WHEN sales_date BETWEEN '2014-02-01' AND '2014-02-20'
-            THEN 'Baseline (1–20 Feb)'
+            THEN 'Non-promotion (1–20 Feb)'
         WHEN sales_date BETWEEN '2014-02-21' AND '2014-02-28'
-            THEN 'Inferred promotion (21–28 Feb)'
+            THEN 'Promotion (21–28 Feb)'
     END
-ORDER BY period;    --baseline (avg price = 33.04,avg quantity sold= 5216.35)
-                    -- inferred promotion (avg price = 32.09,avg quantity sold= 9213.5)
+ORDER BY period;    --Non-promotion (avg price = 33.04,avg quantity sold= 5216.35)
+                    -- Promotion (avg price = 32.09,avg quantity sold= 9213.5)
 
 -- calculating price elasticity (how much quantity is sold changes when the price changes)
---formula: [(Promotion Quantity - Baseline Quantity)/Baseline Quantity]
+--formula: [(Promotion Quantity - Non-promotion Quantity)/Non-promotion Quantity]
 SELECT
     ROUND(
         (
@@ -222,9 +254,9 @@ SELECT
 SELECT
     CASE
         WHEN sales_date BETWEEN '2014-02-01' AND '2014-02-20'
-            THEN 'Baseline (1–20 Feb)'
+            THEN 'Non-promotion (1–20 Feb)'
         WHEN sales_date BETWEEN '2014-02-21' AND '2014-02-28'
-            THEN 'Inferred promotion (21–28 Feb)'
+            THEN 'Promotion (21–28 Feb)'
     END AS period,
     COUNT(*) AS number_of_days,
     ROUND(SUM(sales), 2) AS total_sales,
@@ -234,12 +266,12 @@ WHERE sales_date BETWEEN '2014-02-01' AND '2014-02-28'
 GROUP BY
     CASE
         WHEN sales_date BETWEEN '2014-02-01' AND '2014-02-20'
-            THEN 'Baseline (1–20 Feb)'
+            THEN 'Non-promotion (1–20 Feb)'
         WHEN sales_date BETWEEN '2014-02-21' AND '2014-02-28'
-            THEN 'Inferred promotion (21–28 Feb)'
+            THEN 'Promotion (21–28 Feb)'
     END
-ORDER BY period;--Baseline avg sales = 171,274.64
-                -- Inferred promotion avg sales = 294,374.30 (more revenue)
+ORDER BY period;--Non-promotion avg sales = 171,274.64
+                -- promotion avg sales = 294,374.30 (more revenue)
                 --((294,374.30 -171,274.64 )/171,274.64)*100) = 71.87% increase in sales during promotion period
 
 -------------------------------------------------------------------
@@ -255,13 +287,13 @@ FROM sales.analytics.sales_final
 WHERE sales_date BETWEEN '2015-06-01' AND '2015-06-30'
 ORDER BY sales_date;
 
-----comparing baseline & inferred promotion periods
+----comparing Non-promotion & promotion periods
 SELECT 
     CASE 
         WHEN sales_date BETWEEN '2015-06-08' AND '2015-06-23'
-            THEN 'Baseline (8–23 Jun)'
+            THEN 'Non-promotion (8–23 Jun)'
         WHEN sales_date BETWEEN '2015-06-24' AND '2015-06-30'
-            THEN 'Inferred promotion (24–30 Jun)'
+            THEN 'Promotion (24–30 Jun)'
     END AS period,
     ROUND(AVG(sales_price_per_unit), 2) AS average_price,
     ROUND(AVG(quantity_sold), 2) AS average_quantity_sold,
@@ -271,12 +303,12 @@ WHERE sales_date BETWEEN '2015-06-08' AND '2015-06-30'
 GROUP BY 
     CASE 
         WHEN sales_date BETWEEN '2015-06-08' AND '2015-06-23'
-            THEN 'Baseline (8–23 Jun)'
+            THEN 'Non-promotion (8–23 Jun)'
         WHEN sales_date BETWEEN '2015-06-24' AND '2015-06-30'
-            THEN 'Inferred promotion (24–30 Jun)'
+            THEN 'Promotion (24–30 Jun)'
     END
-ORDER BY period;--baseline (avg price = 42.03,avg quantity sold= 2558.44)
-                 -- inferred promotion (avg price = 37.78,avg quantity sold= 5833.29)
+ORDER BY period;--Non-promotion (avg price = 42.03,avg quantity sold= 2558.44)
+                 -- Promotion (avg price = 37.78,avg quantity sold= 5833.29)
 
 ---- calculating price elasticity
 SELECT
@@ -294,9 +326,9 @@ SELECT
 SELECT
     CASE
         WHEN sales_date BETWEEN '2015-06-08' AND '2015-06-23'
-            THEN 'Baseline (8–23 Jun)'
+            THEN 'Non-promotion (8–23 Jun)'
         WHEN sales_date BETWEEN '2015-06-24' AND '2015-06-30'
-            THEN 'Inferred promotion (24–30 Jun)'
+            THEN 'Promotion (24–30 Jun)'
     END AS period,
     COUNT(*) AS number_of_days,
     ROUND(SUM(sales), 2) AS total_sales,
@@ -306,29 +338,29 @@ WHERE sales_date BETWEEN '2015-06-08' AND '2015-06-30'
 GROUP BY
     CASE
         WHEN sales_date BETWEEN '2015-06-08' AND '2015-06-23'
-            THEN 'Baseline (8–23 Jun)'
+            THEN 'Non-promotion (8–23 Jun)'
         WHEN sales_date BETWEEN '2015-06-24' AND '2015-06-30'
-            THEN 'Inferred promotion (24–30 Jun)'
+            THEN 'Promotion (24–30 Jun)'
     END
-ORDER BY period;--Baseline avg sales = 107,529.37
-                -- Inferred promotion avg sales = 220,422.02 (more revenue)
+ORDER BY period;--Non-promotion avg sales = 107,529.37
+                -- Promotion avg sales = 220,422.02 (more revenue)
                 --((220,422.02 - 107,529.37)/107,529.37)*100) =104.99% increase in sales during promotion period
 
 --comparing gross profit baseline and promotional periods of the 3 identified months
 SELECT
     CASE
         WHEN sales_date BETWEEN '2014-08-01' AND '2014-08-25'
-            THEN 'August Baseline'
+            THEN 'August Non-promotion'
         WHEN sales_date BETWEEN '2014-08-26' AND '2014-08-31'
             THEN 'August Promotion'
 
         WHEN sales_date BETWEEN '2014-02-01' AND '2014-02-20'
-            THEN 'February Baseline'
+            THEN 'February Non-promotion'
         WHEN sales_date BETWEEN '2014-02-21' AND '2014-02-28'
             THEN 'February Promotion'
 
         WHEN sales_date BETWEEN '2015-06-08' AND '2015-06-23'
-            THEN 'June Baseline'
+            THEN 'June Non-promotion'
         WHEN sales_date BETWEEN '2015-06-24' AND '2015-06-30'
             THEN 'June Promotion'
     END AS period,
@@ -346,23 +378,23 @@ WHERE
 GROUP BY
     CASE
         WHEN sales_date BETWEEN '2014-08-01' AND '2014-08-25'
-            THEN 'August Baseline'
+            THEN 'August Non-promotion'
         WHEN sales_date BETWEEN '2014-08-26' AND '2014-08-31'
             THEN 'August Promotion'
 
         WHEN sales_date BETWEEN '2014-02-01' AND '2014-02-20'
-            THEN 'February Baseline'
+            THEN 'February Non-promotion'
         WHEN sales_date BETWEEN '2014-02-21' AND '2014-02-28'
             THEN 'February Promotion'
 
         WHEN sales_date BETWEEN '2015-06-08' AND '2015-06-23'
-            THEN 'June Baseline'
+            THEN 'June Non-promotion'
         WHEN sales_date BETWEEN '2015-06-24' AND '2015-06-30'
             THEN 'June Promotion'
     END
-ORDER BY period; --August 2014 promotion period avg daily profit = -43962.55 & baseline = -10011.15
-                 --February 2014 promotion period avg daily profit = -8852.92 & baseline = -3108.40
-                 --June 2015 promotion period avg daily profit = -13677.84 & baseline = 4105.10
+ORDER BY period; --August 2014 promotion period avg daily profit = -43962.55 & non-promotion = -10011.15
+                 --February 2014 promotion period avg daily profit = -8852.92 & non-promotion = -3108.40
+                 --June 2015 promotion period avg daily profit = -13677.84 & non-promotion = 4105.10
                  --(At lower prices more quantity was sold and sales were high but gross was low for 2 periods and high in june 2015)
 
 --checking which days produced highest sales and lowset sales (top 10)
