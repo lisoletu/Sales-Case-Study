@@ -5,8 +5,8 @@ WITH transformed_data AS (
 
     SELECT
         sales_date,
-        ROUND(sales,2) AS sales,
-        ROUND(cost_of_sales,2) AS cost_of_sales,
+        CAST(ROUND(sales) AS DECIMAL (10,2)) AS sales,
+        CAST(ROUND(cost_of_sales) AS DECIMAL (10,2)) AS cost_of_sales,
         quantity_sold,
         YEAR(sales_date) AS year,
         MONTH(sales_date) AS month_number,
@@ -14,17 +14,16 @@ WITH transformed_data AS (
         QUARTER(sales_date) AS quarter,
         DAY(sales_date) AS day,
         DAYNAME(sales_date) AS day_of_week,
-        ROUND(sales / quantity_sold, 2) AS sales_price_per_unit,
-        ROUND(sales - cost_of_sales, 2) AS gross_profit,
-        ROUND((sales - cost_of_sales) / quantity_sold,2) AS gross_profit_per_unit,
-        ROUND(((sales - cost_of_sales) / sales) * 100,2) AS gross_profit_percentage,
-        ROUND(
+        CAST(ROUND(sales / quantity_sold) AS DECIMAL (10,2)) AS sales_price_per_unit,
+        CAST(ROUND(sales - cost_of_sales) AS DECIMAL (10,2)) AS gross_profit,
+        CAST(ROUND((sales - cost_of_sales) / quantity_sold)AS DECIMAL (10,2)) AS gross_profit_per_unit,
+        CAST(ROUND(((sales - cost_of_sales) / sales) * 100) AS DECIMAL (10,2)) AS gross_profit_percentage,
+        CAST(ROUND(
             (
                 ((sales - cost_of_sales) / quantity_sold)
                 / (sales / quantity_sold)
-            ) * 100,
-            2
-        ) AS gross_profit_percentage_per_unit
+            ) * 100
+        ) AS DECIMAL (10,2))AS gross_profit_percentage_per_unit
 
     FROM sales.analytics.sales_cleaned
 )
