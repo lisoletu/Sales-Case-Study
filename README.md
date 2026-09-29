@@ -1,4 +1,4 @@
-# 📊 Sales Analysis & Price Elasticity Case Study
+# 📊 Sales Analysis Case Study
 
 ## Project Overview
 
@@ -78,6 +78,7 @@ The findings were used to develop data-driven business recommendations to suppor
 
 ## 📁 Repository Contents
 
+This repository contains the Raw dataset, Project Requirement document, Project Planning and Timeline document, SQL analysis, Excel file, dashboards, and final presentation developed as part of the Sales case study.
 
 
 ## 👩🏽‍💻 Author
