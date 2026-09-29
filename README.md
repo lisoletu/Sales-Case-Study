@@ -84,4 +84,4 @@ This repository contains the Raw dataset, Project Requirement document, Project 
 ## 👩🏽‍💻 Author
 
 **Lisoletu Digala**  
-Data Analyst | SQL | Databricks | Excel | Power BI | Tableau | Looker Studio
+Data Analyst | SQL | Databricks | Excel | Power BI | Lovable | Looker Studio
